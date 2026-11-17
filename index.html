@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>电场沙盘 · FIELD SANDBOX · 大物下 VIBE 01</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{ --bg:#06061A; --panel:#141331; --ink:#F2EDE3; --ink2:rgba(242,237,227,.66);
+         --ink3:rgba(242,237,227,.38); --gold:#C9A96A; --goldHi:#F3DBA4; --seal:#B53A2F; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Noto Sans CJK SC","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    overscroll-behavior:none;}
+  #app{position:fixed;inset:0;height:100vh;height:100dvh;display:flex;flex-direction:column;}
+  header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
+    background:linear-gradient(180deg,#0B0A22,#06061A);border-bottom:1px solid rgba(201,169,106,.22);}
+  .brand{font-weight:700;font-size:15px;letter-spacing:1px;color:var(--goldHi);white-space:nowrap;}
+  .brand small{font-weight:400;font-size:11px;color:var(--ink3);letter-spacing:2px;margin-left:6px;}
+  #tabs{display:flex;gap:6px;}
+  button{touch-action:manipulation;min-height:44px;min-width:44px;padding:0 14px;
+    background:rgba(20,19,49,.92);color:var(--ink);border:1px solid rgba(201,169,106,.4);
+    border-radius:10px;font-size:14px;font-family:inherit;cursor:pointer;}
+  button:active{background:rgba(201,169,106,.25);}
+  button[aria-selected="true"]{border-color:var(--goldHi);color:var(--goldHi);
+    box-shadow:0 0 10px rgba(232,190,120,.25) inset;}
+  button:disabled{opacity:.35;cursor:default;}
+  button.toggled{border-color:var(--goldHi);color:var(--goldHi);}
+  #chip{margin-left:auto;font-size:14px;color:var(--goldHi);white-space:nowrap;
+    font-family:"Liberation Serif","Times New Roman",serif;}
+  #stats{font-size:12px;color:var(--ink2);white-space:nowrap;}
+  #stage{position:relative;flex:1;min-height:0;}
+  canvas{display:block;touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;}
+  footer{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;
+    padding:8px 10px;padding-bottom:calc(8px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,#0B0A22,#06061A);border-top:1px solid rgba(201,169,106,.22);}
+  footer .grp{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+  #hint{width:100%;text-align:center;font-size:13px;color:var(--ink2);min-height:18px;}
+  #winCard{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);
+    max-width:min(92%,560px);background:rgba(6,6,26,.88);border:1px solid rgba(201,169,106,.5);
+    border-radius:12px;padding:12px 16px;text-align:center;}
+  #winText{font-size:14px;line-height:1.6;color:var(--goldHi);
+    font-family:"Noto Serif CJK SC","Noto Serif SC","Songti SC",serif;}
+  #winCard .row{display:flex;gap:8px;justify-content:center;margin-top:10px;}
+  #shotOverlay{position:absolute;inset:0;background:rgba(6,6,26,.94);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;z-index:9;}
+  #shotOverlay img{max-width:100%;max-height:72%;border:1px solid rgba(201,169,106,.5);border-radius:8px;}
+  #shotOverlay p{margin:0;font-size:14px;color:var(--goldHi);}
+  [hidden]{display:none !important;}
+  @media (max-width:560px){ .brand small{display:none;} .brand{font-size:13px;}
+    button{padding:0 10px;font-size:13px;} #chip{font-size:13px;} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">电场沙盘<small>FIELD SANDBOX</small></div>
+    <div id="tabs" role="tablist">
+      <button role="tab" id="tabFree" aria-selected="true">自由沙盘</button>
+      <button role="tab" id="tabCh" aria-selected="false">挑战 · 调零</button>
+    </div>
+    <span id="stats" hidden></span>
+    <output id="chip" aria-live="polite"></output>
+  </header>
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="winCard" hidden>
+      <div id="winText"></div>
+      <div class="row">
+        <button id="btnKeep">继续摆</button>
+        <button id="btnRetry">重来</button>
+      </div>
+    </div>
+    <div id="shotOverlay" hidden>
+      <img id="shotImg" alt="电场沙盘截图">
+      <p>长按图片保存 · 可发 B站动态</p>
+      <button id="shotClose">关闭</button>
+    </div>
+  </div>
+  <footer>
+    <div class="grp" id="barFree">
+      <button id="btnAddP">加 +q</button>
+      <button id="btnAddN">加 −q</button>
+      <button id="btnFlip" disabled>反号</button>
+      <button id="btnQ" disabled>电量 ×2</button>
+      <button id="btnDel" disabled>删除</button>
+      <button id="btnResetF">重置</button>
+    </div>
+    <div class="grp" id="barCh" hidden>
+      <button id="btnHint">提示</button>
+      <button id="btnAdv" aria-pressed="false">进阶 · 2q</button>
+      <button id="btnRetry2">重来</button>
+    </div>
+    <div class="grp"><button id="btnElectron" aria-pressed="false">发射电子</button><button id="btnShot">截图</button></div>
+    <div id="hint"></div>
+  </footer>
+</div>
+<script>
+(function(){
+'use strict';
+// ============ config / palette（源自 EP01 kit/lib.js 与 ep01-coulomb.html，内联改编） ============
+const C={bg0:'#06061A',ink:'#F2EDE3',ink2:'rgba(242,237,227,0.66)',ink3:'rgba(242,237,227,0.38)',
+  gold:'#C9A96A',goldHi:'#F3DBA4',goldDim:'#8E7542',seal:'#B53A2F',red:'#D2543F',redHi:'#F08A72',
+  blue:'#7FA6E0',warm:'#E8A87C'};
+const SERIF='"Noto Serif CJK SC","Noto Serif SC","Songti SC",serif';
+const SANS='"Noto Sans CJK SC","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+const LATIN='"Liberation Serif","Times New Roman",serif';
+const GOLD_RGB='232,190,120',RGB_WARM='232,168,124',RGB_BLUE='127,166,224',RGB_RED='240,138,114';
+const D0_FRAC=.22,WIN_ENTER=.02,WIN_EXIT=.03,WIN_HOLD=1.2,SNAP_R=16,MAX_CHARGES=8,
+      PAD=.03,TAP_SLOP=6,STORE_KEY='fieldSandbox.v1';
+// ============ math ============
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const lerp=(a,b,k)=>a+(b-a)*k;
+const eo=x=>{x=clamp(x);return 1-Math.pow(1-x,3);};
+function rng(seed){let s=seed>>>0;return()=>{s+=0x6D2B79F5;let r=Math.imul(s^s>>>15,1|s);r^=r+Math.imul(r^r>>>7,61|r);return((r^r>>>14)>>>0)/4294967296;};}
+const R=Math.round;
+// ============ canvas / resize ============
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),stage=document.getElementById('stage');
+let w=0,h=0,S=0,d0=0,E0=0,dpr=1,step=0,chargeR=0,bgLayer=null,radLayer=null,motes=[];
+const px=c=>c.nx*w, py=c=>c.ny*h;
+function clientToCanvas(cx,cy){const r=cv.getBoundingClientRect();return{x:cx-r.left,y:cy-r.top};}
+function resize(){
+  const r=stage.getBoundingClientRect();
+  const nw=Math.max(200,Math.round(r.width)),nh=Math.max(200,Math.round(r.height));
+  const nd=Math.min(window.devicePixelRatio||1,2);
+  if(nw===w&&nh===h&&nd===dpr)return;
+  const ow=w,oh=h,oS=S;
+  w=nw;h=nh;dpr=nd;S=Math.min(w,h);d0=D0_FRAC*S;E0=1/(d0*d0);
+  step=clamp(S/12,48,84);chargeR=clamp(S*.032,14,26);
+  cv.width=R(w*dpr);cv.height=R(h*dpr);cv.style.width=w+'px';cv.style.height=h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  // 背景预渲到离屏层（resize 时一次）：每帧只做 blit，避免逐帧渐变光栅化
+  bgLayer=document.createElement('canvas');bgLayer.width=cv.width;bgLayer.height=cv.height;
+  const b=bgLayer.getContext('2d');b.setTransform(dpr,0,0,dpr,0,0);
+  const lg=b.createLinearGradient(0,0,0,h);lg.addColorStop(0,C.bg0);lg.addColorStop(1,'#0B0A22');
+  b.fillStyle=lg;b.fillRect(0,0,w,h);
+  radLayer=document.createElement('canvas');radLayer.width=cv.width;radLayer.height=cv.height;
+  const r2=radLayer.getContext('2d');r2.setTransform(dpr,0,0,dpr,0,0);
+  const rg=r2.createRadialGradient(w*.5,h*.42,40,w*.5,h*.42,Math.max(w,h)*.66);
+  rg.addColorStop(0,'rgba(52,44,96,0.64)');rg.addColorStop(.55,'rgba(20,19,52,0.3)');rg.addColorStop(1,'rgba(0,0,0,0)');
+  r2.fillStyle=rg;r2.fillRect(0,0,w,h);
+  const rr=rng(7);motes=Array.from({length:110},()=>({x:rr()*w,y:rr()*h,s:.5+rr()*1.5,v:3+rr()*7,p:rr()*6.28}));
+  if(oS>0){ // 各向同性世界坐标重投影：横竖屏切换后物理比值不变
+    for(const c of state.free.concat(state.ch)){
+      const u=(c.nx*ow-ow/2)/oS,v=(c.ny*oh-oh/2)/oS;
+      c.nx=clamp((w/2+u*S)/w,PAD,1-PAD);c.ny=clamp((h/2+v*S)/h,PAD,1-PAD);
+    }
+    if(drag.active){const p=clientToCanvas(drag.lastX,drag.lastY);placeDragged(p.x,p.y);}
+  }
+}
+// ============ background（lib.js background 改编：缓存线性渐变，丢弃 video 专属层） ============
+function background(t){
+  ctx.drawImage(bgLayer,0,0,w,h);
+  const br=.5+.5*Math.sin(t*2*Math.PI/36);
+  ctx.globalAlpha=(.5+.14*br)/.64;
+  ctx.drawImage(radLayer,0,0,w,h);
+  ctx.globalAlpha=1;
+  for(const d of motes){
+    const y=((d.y-t*d.v)%h+h)%h,x=d.x+Math.sin(t*.22+d.p)*14;
+    ctx.fillStyle=`rgba(248,221,156,${(.06+.08*(.5+.5*Math.sin(t*.6+d.p))).toFixed(3)})`;
+    ctx.beginPath();ctx.arc(x,y,d.s,0,6.283);ctx.fill();
+  }
+}
+// ============ primitives（verbatim 源见计划；txt 去掉 filter/metal 路径） ============
+function glow(x,y,r,rgb,a){
+  if(a<=0)return;
+  ctx.save();ctx.globalAlpha*=a;
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,`rgba(${rgb},1)`);g.addColorStop(.35,`rgba(${rgb},.3)`);g.addColorStop(1,`rgba(${rgb},0)`);
+  ctx.fillStyle=g;ctx.fillRect(x-r,y-r,2*r,2*r);ctx.restore();
+}
+function circle(x,y,r,fill,stroke,lw=2){
+  ctx.beginPath();ctx.arc(x,y,Math.max(0,r),0,Math.PI*2);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
+}
+function line(x1,y1,x2,y2,col,lw=2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.stroke();}
+function rrect(x,y,ww,hh,r){
+  r=Math.max(0,Math.min(r,Math.abs(ww)/2,Math.abs(hh)/2));
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+ww,y,x+ww,y+hh,r);ctx.arcTo(x+ww,y+hh,x,y+hh,r);
+  ctx.arcTo(x,y+hh,x,y,r);ctx.arcTo(x,y,x+ww,y,r);ctx.closePath();
+}
+function txt(s,x,y,o={}){
+  const size=o.size||16,a=o.alpha===undefined?1:o.alpha;
+  if(a<=.003)return 0;
+  ctx.save();ctx.globalAlpha*=a;
+  ctx.font=`${o.italic?'italic ':''}${o.weight||400} ${size}px ${o.font||SANS}`;
+  ctx.textAlign=o.align||'center';ctx.textBaseline=o.base||'alphabetic';
+  if(o.ls&&'letterSpacing' in ctx)ctx.letterSpacing=o.ls+'px';
+  ctx.fillStyle=o.color||C.ink;
+  if(o.glow){ctx.shadowColor=o.glow;ctx.shadowBlur=o.glowBlur||18;}
+  ctx.fillText(s,R(x),R(y+(o.rise||0)));
+  const mw=ctx.measureText(s).width;ctx.restore();return mw;
+}
+function charge(x,y,r,sign,rgb,a,label,lo){
+  if(a<=0)return;
+  ctx.save();ctx.globalAlpha*=a;
+  glow(x,y,r*4.2,rgb,.5);
+  circle(x,y,r,`rgba(${rgb},0.16)`,`rgba(${rgb},0.95)`,2.5);
+  ctx.strokeStyle='#FFF4D6';ctx.lineWidth=Math.max(2,r*.16);ctx.lineCap='round';
+  const s=r*.5;
+  ctx.beginPath();ctx.moveTo(x-s,y);ctx.lineTo(x+s,y);
+  if(sign==='+'){ctx.moveTo(x,y-s);ctx.lineTo(x,y+s);}
+  ctx.stroke();
+  if(label)txt(label,x+(lo&&lo.dx||0),y+(lo&&lo.dy||-r-12),{size:(lo&&lo.size)||16,weight:700,color:'#F2EDE3',font:LATIN,italic:true});
+  ctx.restore();
+}
+function ray(x,y,ang,len,rgb,a,lw=2.5){
+  if(a<=0||len<=0)return;
+  ctx.save();ctx.globalAlpha*=a;
+  const x2=x+Math.cos(ang)*len,y2=y+Math.sin(ang)*len;
+  const g=ctx.createLinearGradient(x,y,x2,y2);
+  g.addColorStop(0,`rgba(${rgb},0.9)`);g.addColorStop(.7,`rgba(${rgb},0.35)`);g.addColorStop(1,`rgba(${rgb},0)`);
+  ctx.strokeStyle=g;ctx.lineWidth=lw;ctx.lineCap='round';
+  ctx.shadowColor=`rgba(${rgb},0.8)`;ctx.shadowBlur=12;
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function arrow(x1,y1,x2,y2,col,a,lw=5,rgb){
+  if(a<=0)return;
+  const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy);
+  if(L<4)return;
+  ctx.save();ctx.globalAlpha*=a;
+  if(rgb){ctx.shadowColor=`rgba(${rgb},0.7)`;ctx.shadowBlur=14;}
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=lw;ctx.lineCap='round';
+  const ux=dx/L,uy=dy/L,hs=Math.min(14,L*.4);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-ux*hs*.7,y2-uy*hs*.7);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-ux*hs-uy*hs*.5,y2-uy*hs+ux*hs*.5);
+  ctx.lineTo(x2-ux*hs+uy*hs*.5,y2-uy*hs-ux*hs*.5);
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+function chargeGlyph(x,y,col,s=1){
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.lineCap='round';
+  circle(0,0,10,null,col,1.8);
+  ctx.beginPath();ctx.moveTo(-4.5,0);ctx.lineTo(4.5,0);ctx.moveTo(0,-4.5);ctx.lineTo(0,4.5);ctx.stroke();
+  for(const a of[-2.35,-.78,.78,2.35]){ctx.beginPath();ctx.moveTo(Math.cos(a)*13,Math.sin(a)*13);ctx.lineTo(Math.cos(a)*18,Math.sin(a)*18);ctx.stroke();}
+  ctx.restore();
+}
+function rectStamp(x,y,text,k,size=40,rot=-.08){
+  if(k<=0)return;
+  const sc=1+(1-eo(k))*.7;
+  ctx.save();ctx.globalAlpha*=Math.min(1,k*1.7)*.92;
+  ctx.translate(x,y);ctx.rotate(rot);ctx.scale(sc,sc);
+  ctx.font=`900 ${size}px ${SERIF}`;
+  if('letterSpacing' in ctx)ctx.letterSpacing=size*.18+'px';
+  const ww=ctx.measureText(text).width+size*.9,hh=size*1.6;
+  rrect(-ww/2,-hh/2,ww,hh,6);ctx.strokeStyle=C.seal;ctx.lineWidth=size*.09;ctx.stroke();
+  ctx.fillStyle=C.seal;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,size*.09,size*.04);
+  ctx.restore();
+}// ============ physics ============
+const scratch={ex:0,ey:0,mag:0};
+const sq=c=>c.sign==='+'?c.q:-c.q; // 带符号电量（q 存幅值，sign 存极性）
+function fieldAt(x,y,list){
+  let ex=0,ey=0;const dm2=Math.pow(.08*d0,2);
+  for(const c of list){
+    const dx=x-px(c),dy=y-py(c);
+    let d2=dx*dx+dy*dy;if(d2<dm2)d2=dm2;
+    const d=Math.sqrt(d2),f=sq(c)/(d2*d);
+    ex+=f*dx;ey+=f*dy;
+  }
+  scratch.ex=ex;scratch.ey=ey;scratch.mag=Math.hypot(ex,ey);return scratch;
+}
+const list=()=>state.mode==='free'?state.free:state.ch;
+function target(){
+  if(state.mode==='challenge')return{x:w/2,y:h/2,kind:'P'};
+  if(state.free.length===2){
+    return{x:(px(state.free[0])+px(state.free[1]))/2,y:(py(state.free[0])+py(state.free[1]))/2,kind:'mid'};
+  }
+  return null;
+}
+function ratioNow(){
+  const t=target();if(!t)return null;
+  return fieldAt(t.x,t.y,list()).mag/E0;
+}
+// 挑战精确解点：由另一电荷推镜像（基础）或 √2 共线（进阶）
+function mirrorPoint(i){
+  const o=state.ch[1-i],P={x:w/2,y:h/2};
+  const ox=px(o),oy=py(o);
+  if(!state.advanced)return{x:2*P.x-ox,y:2*P.y-oy};
+  const k=state.ch[i].q===2?-Math.SQRT2:-1/Math.SQRT2;
+  return{x:P.x+k*(ox-P.x),y:P.y+k*(oy-P.y)};
+}
+// ============ state ============
+function mkCharge(u,v,q,sign){ // 世界坐标 → 归一化
+  return{nx:clamp((w/2+u*S)/w,PAD,1-PAD),ny:clamp((h/2+v*S)/h,PAD,1-PAD),q,sign};
+}
+const state={
+  mode:'free',advanced:false,free:[],ch:[],selected:-1,
+  win:{latched:false,accum:0,stampT:0},moves:0,elapsed:0,
+  hintOn:false,snapPulse:-9,best:null
+};
+function defaultFree(){
+  state.free=[mkCharge(-D0_FRAC,0,1,'+'),mkCharge(D0_FRAC,0,1,'-')];
+  state.selected=-1;
+}
+function defaultCh(){
+  const q2=state.advanced?2:1;
+  state.ch=[mkCharge(-.30,-.10,1,'+'),mkCharge(.18,.22,q2,'+')];
+  state.selected=-1;state.win={latched:false,accum:0,stampT:0};
+  state.moves=0;state.elapsed=0;state.hintOn=false;
+}
+// ============ persistence（try/catch：file:// 与隐私模式会 throw） ============
+function save(){
+  try{
+    if(!(S>0))return;
+    // 存各向同性世界坐标（而非归一化坐标）：boot 期布局微沉降（如 932→931px）
+    // 触发的重投影不会改变世界坐标，reload 往返精确无损。
+    localStorage.setItem(STORE_KEY,JSON.stringify({
+      free:state.free.map(c=>({u:(c.nx*w-w/2)/S,v:(c.ny*h-h/2)/S,q:c.q,sign:c.sign})),
+      best:state.best
+    }));
+  }catch(e){}
+}
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem(STORE_KEY)||'null');
+    if(d&&Array.isArray(d.free)&&d.free.length>=1&&d.free.length<=MAX_CHARGES&&
+       d.free.every(c=>isFinite(c.u)&&isFinite(c.v)&&(c.q===1||c.q===2)&&(c.sign==='+'||c.sign==='-'))){
+      state.free=d.free.map(c=>mkCharge(c.u,c.v,c.q,c.sign));
+      state.best=d.best||null;return true;
+    }
+  }catch(e){}
+  return false;
+}
+// ============ win logic（滞回 + 锁存 + 后台清零） ============
+function updateWin(dt){
+  if(state.mode!=='challenge')return;
+  const r=ratioNow();
+  if(state.win.latched){state.win.stampT+=dt;return;}
+  state.elapsed+=dt;
+  if(r!==null&&r<WIN_ENTER)state.win.accum+=dt;
+  else if(r!==null&&r>=WIN_EXIT)state.win.accum=0;
+  if(state.win.accum>=WIN_HOLD){
+    state.win.latched=true;state.win.stampT=0;
+    const rec={moves:state.moves,elapsed:state.elapsed};
+    if(!state.best)state.best={};
+    const key=state.advanced?'adv':'basic';
+    const old=state.best[key];
+    if(!old||rec.elapsed<old.elapsed)state.best[key]=rec;
+    save();showWinCard();
+  }
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)state.win.accum=0;});
+// ============ input：Pointer Events 统一鼠标/触摸 ============
+const drag={active:false,id:-1,pointerId:null,lastX:0,lastY:0,startX:0,startY:0,moved:false};
+function placeDragged(x,y){ // 挑战模式磁吸：用原始指针位置判定，拖离自然释放
+  const c=list()[drag.id];if(!c)return;
+  let tx=clamp(x,PAD*w,(1-PAD)*w),ty=clamp(y,PAD*h,(1-PAD)*h);
+  if(state.mode==='challenge'&&!state.win.latched){
+    const M=mirrorPoint(drag.id);
+    if(Math.hypot(tx-M.x,ty-M.y)<SNAP_R){
+      tx=clamp(M.x,PAD*w,(1-PAD)*w);ty=clamp(M.y,PAD*h,(1-PAD)*h);
+      if(performance.now()/1000-state.snapPulse>.4)state.snapPulse=performance.now()/1000;
+    }
+  }
+  c.nx=tx/w;c.ny=ty/h;
+}
+function nearest(x,y){
+  const L=list();let bi=-1,bd=1e9;
+  for(let i=0;i<L.length;i++){
+    const d=Math.hypot(x-px(L[i]),y-py(L[i]));
+    if(d<bd){bd=d;bi=i;}
+  }
+  return bd<=Math.max(chargeR*1.7,28)?bi:-1;
+}
+cv.addEventListener('pointerdown',e=>{
+  if(drag.active)return; // 单指：忽略第二指
+  const p=clientToCanvas(e.clientX,e.clientY);
+  const i=nearest(p.x,p.y);
+  drag.active=true;drag.pointerId=e.pointerId;drag.id=electronArmed?-1:i;
+  drag.lastX=e.clientX;drag.lastY=e.clientY;drag.startX=p.x;drag.startY=p.y;drag.moved=false;
+  if(i>=0&&!electronArmed){state.selected=i;try{cv.setPointerCapture(e.pointerId);}catch(err){}}
+  syncUI();
+  e.preventDefault();
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag.active||e.pointerId!==drag.pointerId)return;
+  drag.lastX=e.clientX;drag.lastY=e.clientY;
+  const p=clientToCanvas(e.clientX,e.clientY);
+  if(!drag.moved&&Math.hypot(p.x-drag.startX,p.y-drag.startY)>TAP_SLOP)drag.moved=true;
+  if(drag.moved&&drag.id>=0)placeDragged(p.x,p.y);
+  e.preventDefault();
+});
+function endDrag(e){
+  if(!drag.active||e.pointerId!==drag.pointerId)return;
+  if(electronArmed){ // 发射模式：tap 落点放电子，不动电荷/选择
+    if(!drag.moved){const p=clientToCanvas(e.clientX,e.clientY);spawnElectron(p.x,p.y);}
+    electronArmed=false;drag.active=false;drag.id=-1;drag.pointerId=null;syncUI();return;
+  }
+  if(drag.moved&&drag.id>=0){state.moves++;save();}
+  else if(!drag.moved){ // 点选/空点取消
+    const p=clientToCanvas(e.clientX,e.clientY);
+    state.selected=nearest(p.x,p.y);
+  }
+  drag.active=false;drag.id=-1;drag.pointerId=null;
+  syncUI();
+}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag); // iOS 系统手势：电荷留在最后位置
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+window.addEventListener('keydown',e=>{
+  if(/INPUT|TEXTAREA/.test(e.target.tagName))return;
+  const L=list(),i=state.selected;
+  if(e.key==='Escape'){state.selected=-1;syncUI();return;}
+  if(i<0||i>=L.length)return;
+  const d=e.shiftKey?10:2;
+  if(e.key==='ArrowLeft'){L[i].nx=clamp(L[i].nx-d/w,PAD,1-PAD);e.preventDefault();}
+  else if(e.key==='ArrowRight'){L[i].nx=clamp(L[i].nx+d/w,PAD,1-PAD);e.preventDefault();}
+  else if(e.key==='ArrowUp'){L[i].ny=clamp(L[i].ny-d/h,PAD,1-PAD);e.preventDefault();}
+  else if(e.key==='ArrowDown'){L[i].ny=clamp(L[i].ny+d/h,PAD,1-PAD);e.preventDefault();}
+  else if((e.key==='Delete'||e.key==='Backspace')&&state.mode==='free'){removeCharge(i);e.preventDefault();}
+  else return;
+  save();syncUI();
+});// ============ UI actions ============
+const $=id=>document.getElementById(id);
+const chip=$('chip'),stats=$('stats'),hint=$('hint'),winCard=$('winCard'),winText=$('winText');
+function addCharge(sign,q=1,nx=null,ny=null){
+  if(state.mode!=='free'||state.free.length>=MAX_CHARGES)return;
+  const n=state.free.length;
+  const c=(nx===null)?mkCharge(-.24+.12*(n%5),.18*((n%3)-1),q,sign)
+                    :{nx:clamp(nx,PAD,1-PAD),ny:clamp(ny,PAD,1-PAD),q,sign};
+  state.free.push(c);state.selected=state.free.length-1;save();syncUI();
+}
+function removeCharge(i){
+  if(state.mode!=='free')return;
+  state.free.splice(i,1);state.selected=-1;save();syncUI();
+}
+function setMode(m){
+  if(m!=='free'&&m!=='challenge')return;
+  state.mode=m;state.selected=-1;drag.active=false;drag.id=-1;
+  electrons.length=0;electronArmed=false;
+  state.win.latched=false;state.win.accum=0;winCard.hidden=true;
+  if(m==='challenge'&&!state.ch.length)defaultCh();
+  syncUI();
+}
+function setAdvanced(b){
+  state.advanced=!!b;
+  if(state.ch[1])state.ch[1].q=state.advanced?2:1;
+  state.win.latched=false;state.win.accum=0;winCard.hidden=true;syncUI();
+}
+function retryChallenge(){defaultCh();winCard.hidden=true;syncUI();}
+function resetCurrent(){
+  electrons.length=0;electronArmed=false;
+  if(state.mode==='free'){defaultFree();save();}else retryChallenge();
+  syncUI();
+}
+function showWinCard(){
+  winText.textContent=state.advanced
+    ?'P 在连线上：距 +q 为 r，距 +2q 为 √2r。(√2r)² = 2r² 恰好抵消 2 倍电量——平方反比的手感。'
+    :'P 恰为中点：等量同号电荷关于 P 对称，两支场箭头等长反向，矢量相加为零。';
+  winCard.hidden=false;
+}
+$('tabFree').onclick=()=>setMode('free');
+$('tabCh').onclick=()=>setMode('challenge');
+$('btnAddP').onclick=()=>addCharge('+');
+$('btnAddN').onclick=()=>addCharge('-');
+$('btnFlip').onclick=()=>{const c=state.free[state.selected];if(c){c.sign=c.sign==='+'?'-':'+';save();syncUI();}};
+$('btnQ').onclick=()=>{const c=state.free[state.selected];if(c){c.q=c.q===1?2:1;save();syncUI();}};
+$('btnDel').onclick=()=>removeCharge(state.selected);
+$('btnResetF').onclick=()=>resetCurrent();
+$('btnHint').onclick=()=>{state.hintOn=!state.hintOn;syncUI();};
+$('btnAdv').onclick=()=>setAdvanced(!state.advanced);
+$('btnRetry').onclick=retryChallenge;
+$('btnRetry2').onclick=retryChallenge;
+$('btnKeep').onclick=()=>{winCard.hidden=true;};
+$('btnElectron').onclick=()=>{electronArmed=!electronArmed;syncUI();};
+function syncUI(){
+  const free=state.mode==='free';
+  $('tabFree').setAttribute('aria-selected',free);
+  $('tabCh').setAttribute('aria-selected',!free);
+  $('barFree').hidden=!free;$('barCh').hidden=free;
+  stats.hidden=free;
+  const sel=state.selected>=0&&state.selected<state.free.length;
+  $('btnFlip').disabled=!free||!sel;$('btnQ').disabled=!free||!sel;$('btnDel').disabled=!free||!sel;
+  $('btnAddP').disabled=!free||state.free.length>=MAX_CHARGES;
+  $('btnAddN').disabled=!free||state.free.length>=MAX_CHARGES;
+  $('btnAdv').classList.toggle('toggled',state.advanced);
+  $('btnAdv').setAttribute('aria-pressed',state.advanced);
+  $('btnElectron').classList.toggle('toggled',electronArmed);
+  $('btnElectron').setAttribute('aria-pressed',electronArmed);
+  hint.textContent=electronArmed
+    ?'点击画布任意位置发射电子 · 负试验电荷逆场运动，撞电荷或出界即消失'
+    :(free
+      ?'拖动电荷随便摆 · 点选后可反号 / 改电量 / 删除 · 恰两个电荷时看中点合成'
+      :(state.hintOn?'让两个电荷关于 P 对称——放得离 P 远一点，场更弱，更容易调零'
+                   :(state.advanced?'进阶：+q 与 +2q · 把 P 点场强调成零（解在连线上）'
+                                   :'把两个 +q 拖到让 P 点场强为零 · 卡住了点「提示」')));
+}
+// ============ screenshot（B站 webview 拦下载 → 触摸设备走长按保存 overlay） ============
+const shotOverlay=$('shotOverlay'),shotImg=$('shotImg');
+const isTouch=()=>matchMedia('(pointer: coarse)').matches||('ontouchstart' in window);
+$('btnShot').onclick=()=>{
+  shotHUD=true;paint(performance.now()/1000);shotHUD=false; // 同步重绘一帧带 HUD 再导出
+  cv.toBlob(b=>{
+    if(!b)return;
+    const url=URL.createObjectURL(b);
+    if(isTouch()){shotImg.src=url;shotOverlay.dataset.url=url;shotOverlay.hidden=false;}
+    else{
+      const a=document.createElement('a');a.href=url;a.download='field-sandbox.png';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+    }
+  },'image/png');
+};
+$('shotClose').onclick=()=>{
+  shotOverlay.hidden=true;shotImg.removeAttribute('src');
+  if(shotOverlay.dataset.url){URL.revokeObjectURL(shotOverlay.dataset.url);delete shotOverlay.dataset.url;}
+};
+// ============ render ============
+const Lmax=()=>.42*step;
+// ============ 流动场线（替代网格小箭头）============
+// 电荷不动时缓存路径：仅拖拽/增删/resize/切模式（签名变化）才重新积分；
+// 流动动画只推进相位，不逐帧重新积分。颜色沿用 暖(+) / 青(−)，不新增色。
+let fieldLines=[],fieldBuildId=0,lastFieldSig='',fieldHash=0;
+function fieldSig(){
+  const L=list();let s=state.mode+'|'+w+'x'+h+'|';
+  for(const c of L)s+=c.nx.toFixed(4)+','+c.ny.toFixed(4)+','+c.q+c.sign+';';
+  return s;
+}
+function buildFieldLines(){
+  fieldLines=[];fieldHash=0;fieldBuildId++;
+  const L=list();if(!L.length||!(S>0))return;
+  const ds=Math.max(2.5,S/240),MAXSTEPS=560,margin=2;
+  const pos=L.filter(c=>c.sign==='+'),neg=L.filter(c=>c.sign==='-');
+  const reverse=!pos.length;            // 无正电荷 → 从负电荷逆向追踪
+  const sources=reverse?neg:pos;
+  const vbase=Math.max(60,S*0.30);      // 相位推进基准速度 px/s
+  let li=0;
+  for(const src of sources){
+    const count=Math.max(6,Math.round(10*src.q)); // 条数 ∝ |q|，密度诚实
+    const cx=px(src),cy=py(src),r0=chargeR+3,rgb=reverse?RGB_BLUE:RGB_WARM;
+    const angOff=li*0.37;
+    for(let k=0;k<count;k++){
+      const th=angOff+2*Math.PI*k/count;
+      let x=cx+Math.cos(th)*r0,y=cy+Math.sin(th)*r0;
+      const pts=[[x,y]],mags=[fieldAt(x,y,L).mag];
+      let steps=0;
+      while(steps<MAXSTEPS){
+        const f=fieldAt(x,y,L),m=f.mag;
+        if(m<1e-9)break;                 // 零点：方向无定义
+        let ux=f.ex/m,uy=f.ey/m;if(reverse){ux=-ux;uy=-uy;}
+        x+=ux*ds;y+=uy*ds;steps++;
+        if(x<-margin||x>w+margin||y<-margin||y>h+margin)break; // 出界
+        let hit=false;
+        for(const c of L){if(steps<4&&c===src)continue;
+          if(Math.hypot(x-px(c),y-py(c))<chargeR*0.9){hit=true;break;}} // 遇电荷终止
+        pts.push([x,y]);mags.push(fieldAt(x,y,L).mag);
+        if(hit)break;
+      }
+      if(pts.length<3){li++;continue;}
+      // 统一存储顺序 = E 方向（逆向追踪的点反转），亮点一律低索引→高索引流动
+      const P=reverse?pts.slice().reverse():pts,M=reverse?mags.slice().reverse():mags;
+      const cum=[0];let total=0,arcLen=0;
+      for(let i=1;i<P.length;i++){
+        const dl=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);arcLen+=dl;
+        const mm=M[i],v=vbase*(0.7+0.6*mm/(mm+E0)); // 速度随局部 |E| 微调（0.7~1.3×）
+        total+=dl/Math.max(1,v);cum.push(total);
+      }
+      if(total<=0){li++;continue;}
+      const np=clamp(Math.round(arcLen/150),1,5);
+      fieldLines.push({P,cum,total,rgb,np,off:li*0.61});
+      for(let i=0;i<P.length;i+=3)fieldHash=(fieldHash*31+Math.round(P[i][0]*7+P[i][1]*13))|0;
+      li++;
+    }
+  }
+}
+function ensureFieldLines(){const s=fieldSig();if(s!==lastFieldSig){lastFieldSig=s;buildFieldLines();}}
+function pointAt(ln,ph){
+  const cum=ln.cum,P=ln.P,n=cum.length;
+  if(ph<=0)return{x:P[0][0],y:P[0][1]};
+  if(ph>=cum[n-1])return{x:P[n-1][0],y:P[n-1][1]};
+  let lo=0,hi=n-1;
+  while(lo+1<hi){const mid=(lo+hi)>>1;if(cum[mid]<=ph)lo=mid;else hi=mid;}
+  const span=cum[hi]-cum[lo]||1,k=(ph-cum[lo])/span;
+  return{x:P[lo][0]+(P[hi][0]-P[lo][0])*k,y:P[lo][1]+(P[hi][1]-P[lo][1])*k};
+}
+function drawFieldLines(t){
+  ensureFieldLines();
+  if(!fieldLines.length)return;
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+  for(const ln of fieldLines){ // 细线半透明底线
+    const P=ln.P;ctx.strokeStyle=`rgba(${ln.rgb},0.16)`;ctx.lineWidth=1.1;
+    ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);
+    for(let i=1;i<P.length;i++)ctx.lineTo(P[i][0],P[i][1]);
+    ctx.stroke();
+  }
+  for(const ln of fieldLines){ // 沿线流动的短亮段 + 亮点（仅相位推进）
+    const total=ln.total;
+    for(let j=0;j<ln.np;j++){
+      const ph=(t+ln.off+j*total/ln.np)%total;
+      const head=pointAt(ln,ph),tail=pointAt(ln,Math.max(0,ph-0.07));
+      ctx.strokeStyle=`rgba(${ln.rgb},0.72)`;ctx.lineWidth=2.3;
+      ctx.beginPath();ctx.moveTo(tail.x,tail.y);ctx.lineTo(head.x,head.y);ctx.stroke();
+      ctx.fillStyle=`rgba(${ln.rgb},0.15)`;ctx.beginPath();ctx.arc(head.x,head.y,4.2,0,6.283);ctx.fill();
+      ctx.fillStyle=`rgba(${ln.rgb},0.95)`;ctx.beginPath();ctx.arc(head.x,head.y,1.9,0,6.283);ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+// ============ 发射电子（负试验电荷，逆 E 运动，纯视觉，不入 list/不扰判定）============
+let electrons=[],electronArmed=false;
+const E_MAX=5,E_TRAIL=26;
+function spawnElectron(x,y){
+  if(!(S>0))return;
+  electrons.push({x,y,vx:0,vy:0,trail:[{x,y}],age:0});
+  if(electrons.length>E_MAX)electrons.shift();
+}
+function updateElectrons(dt){
+  if(!electrons.length)return;
+  const L=list(),sp=Math.max(120,S*0.5);
+  for(let i=electrons.length-1;i>=0;i--){
+    const e=electrons[i],f=fieldAt(e.x,e.y,L),m=f.mag;
+    if(m>1e-9){const v=sp*(0.55+0.85*m/(m+E0));e.vx=-f.ex/m*v;e.vy=-f.ey/m*v;} // 负电荷 → 逆 E
+    e.x+=e.vx*dt;e.y+=e.vy*dt;e.age+=dt;
+    e.trail.push({x:e.x,y:e.y});if(e.trail.length>E_TRAIL)e.trail.shift();
+    let dead=e.x<0||e.x>w||e.y<0||e.y>h||e.age>14;
+    if(!dead)for(const c of L){if(Math.hypot(e.x-px(c),e.y-py(c))<chargeR+2){dead=true;break;}}
+    if(dead)electrons.splice(i,1);
+  }
+}
+function drawElectrons(){
+  if(!electrons.length)return;
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+  for(const e of electrons){
+    const T=e.trail;
+    for(let i=1;i<T.length;i++){ // 青色渐隐拖尾
+      ctx.strokeStyle=`rgba(${RGB_BLUE},${((i/T.length)*0.5).toFixed(3)})`;
+      ctx.lineWidth=1+2*(i/T.length);
+      ctx.beginPath();ctx.moveTo(T[i-1].x,T[i-1].y);ctx.lineTo(T[i].x,T[i].y);ctx.stroke();
+    }
+    charge(e.x,e.y,6,'-',RGB_BLUE,1,null); // 复用 charge 视觉语言
+  }
+  ctx.restore();
+}
+function drawTarget(){
+  const t=target();if(!t)return;
+  const L=list();
+  if(state.mode==='free'){
+    ctx.save();ctx.setLineDash([7,7]);
+    line(px(L[0]),py(L[0]),px(L[1]),py(L[1]),'rgba(242,237,227,0.28)',1.4);
+    ctx.setLineDash([]);ctx.restore();
+  }else{
+    circle(t.x,t.y,chargeR+12,null,'rgba(201,169,106,0.5)',1.6);
+  }
+  // P/中点十字（S9 视觉语言）
+  line(t.x-12,t.y,t.x+12,t.y,C.ink,2.2);line(t.x,t.y-12,t.x,t.y+12,C.ink,2.2);
+  circle(t.x,t.y,6,null,C.ink,1.8);
+  txt(t.kind==='P'?'P':'中点',t.x,t.y+30,{size:14,font:t.kind==='P'?LATIN:SANS,italic:t.kind==='P',weight:700,color:C.ink2});
+  // 分量箭头 E₁/E₂（+ 金 / − 蓝），垂直微偏避免完全重叠
+  const lm=Lmax();
+  for(let i=0;i<L.length;i++){
+    const c=L[i],dx=t.x-px(c),dy=t.y-py(c);
+    let d2=dx*dx+dy*dy;const dm2=Math.pow(.08*d0,2);if(d2<dm2)d2=dm2;
+    const d=Math.sqrt(d2),m=c.q/d2,sgn=c.sign==='+'?1:-1,ux=sgn*dx/d,uy=sgn*dy/d;
+    const len=lm*m/(m+E0);if(len<4)continue;
+    const off=5*(i===0?1:-1),sx=t.x-uy*off,sy=t.y+ux*off;
+    const col=c.sign==='+'?C.goldHi:C.blue,rgb=c.sign==='+'?GOLD_RGB:RGB_BLUE;
+    arrow(sx,sy,sx+ux*len,sy+uy*len,col,.9,4,rgb);
+    if(len>22)txt('E'+(i===0?'₁':'₂'),sx+ux*len*.6-uy*14,sy+uy*len*.6+ux*14,{size:13,font:LATIN,italic:true,color:col});
+  }
+  // 合矢量（红，S11 语言），画在目标下方避免与分量打架
+  const f=fieldAt(t.x,t.y,L),m=f.mag,len=lm*m/(m+E0);
+  if(m>1e-12&&len>=4){
+    const ux=f.ex/m,uy=f.ey/m,ry=t.y+44;
+    arrow(t.x,ry,t.x+ux*len,ry+uy*len,C.redHi,.95,6,RGB_RED);
+    txt('合场强',t.x+ux*len*.5,ry+uy*len*.5+22,{size:13,color:C.redHi});
+  }
+  // 读数只走顶栏 chip 与截图 HUD，避免近 P 文字与电荷/印章打架
+}
+function drawCharges(t){
+  const L=list();
+  for(let i=0;i<L.length;i++){
+    const c=L[i],rgb=c.sign==='+'?RGB_WARM:RGB_BLUE;
+    const label=(c.sign==='+'?'+':'−')+(c.q===2?'2q':'q');
+    charge(px(c),py(c),chargeR,c.sign,rgb,1,label,{dy:-chargeR-10,size:15});
+    if(i===state.selected)circle(px(c),py(c),chargeR+6,null,C.ink2,1.6);
+  }
+  if(t-state.snapPulse<.5&&drag.id>=0){ // 磁吸金色脉冲
+    const k=(t-state.snapPulse)/.5,c=L[drag.id];
+    if(c)circle(px(c),py(c),chargeR+8+k*26,null,`rgba(232,190,120,${(1-k).toFixed(2)})`,2);
+  }
+}
+function drawChallengeExtras(t){
+  const P={x:w/2,y:h/2};
+  if(state.hintOn&&!state.win.latched){ // 幽灵解点（仅提示后）
+    ctx.save();ctx.setLineDash([5,6]);
+    for(let i=0;i<2;i++){
+      const M=mirrorPoint(i);
+      circle(M.x,M.y,chargeR*.85,null,C.ink3,1.6);
+    }
+    ctx.setLineDash([]);ctx.restore();
+  }
+  if(state.win.latched){
+    const st=state.win.stampT,k=eo(Math.min(st/.5,1));
+    const burst=Math.max(0,1-st/1.6)*.8;
+    if(burst>0)for(let j=0;j<16;j++)ray(P.x,P.y,j*Math.PI/8+st*.15,50+90*eo(Math.min(st/1.2,1)),GOLD_RGB,burst,2.5);
+    rectStamp(P.x,P.y-72,'调零成功',k,clamp(S*.06,28,44));
+    txt(state.advanced?'距 +q 为 r，距 +2q 为 √2r · 平方反比的手感':'等量同号 · 关于 P 对称 · 反向相消',
+        P.x,P.y+96,{size:clamp(S*.03,14,19),font:SERIF,color:C.goldHi,alpha:k});
+  }
+}
+function drawChrome(){
+  chargeGlyph(26,26,C.gold,.75);
+  txt('大物下 VIBE · 01',46,31,{size:13,align:'left',color:C.ink2,weight:500,ls:2});
+  txt('电场沙盘 · FIELD SANDBOX',46,48,{size:11,align:'left',color:C.ink3,ls:1});
+  txt('示意 · 真空点电荷 · 场强为矢量和',w/2,h-10,{size:12,color:C.ink3});
+  if(shotHUD){ // 截图自包含：右上角读数（屏幕上由 DOM chip 承担，不重复画）
+    const r=ratioNow();
+    txt(`|E|/E₀ = ${r===null?'—':(r>99.99?'99.99+':r.toFixed(2))}`,w-20,31,
+        {size:16,align:'right',font:LATIN,weight:700,color:C.goldHi});
+    if(state.mode==='challenge')
+      txt(`步数 ${state.moves} · ${state.elapsed.toFixed(1)}s`,w-20,50,{size:12,align:'right',color:C.ink2});
+  }
+}
+let lastChip='',lastStats='';
+function updateDom(){
+  const r=ratioNow();
+  const cs=r===null?(state.mode==='free'?'摆两个电荷看中点合成':'—')
+                   :`|E|/E₀ = ${r>99.99?'99.99+':r.toFixed(2)}`;
+  if(cs!==lastChip){chip.textContent=cs;lastChip=cs;}
+  if(state.mode==='challenge'){
+    let ss=`步数 ${state.moves} · ${state.elapsed.toFixed(1)}s`;
+    const b=state.best&&state.best[state.advanced?'adv':'basic'];
+    if(b)ss+=` · 最佳 ${b.elapsed.toFixed(1)}s`;
+    if(ss!==lastStats){stats.textContent=ss;lastStats=ss;}
+  }
+}
+let last=performance.now(),shotHUD=false;
+function paint(t){
+  background(t);
+  drawFieldLines(t);
+  drawTarget();
+  drawCharges(t);
+  drawElectrons();
+  if(state.mode==='challenge')drawChallengeExtras(t);
+  drawChrome();
+}
+function frame(now){
+  const dt=Math.min((now-last)/1000,.05);last=now;const t=now/1000;
+  updateWin(dt);
+  updateElectrons(dt);
+  paint(t);
+  updateDom();
+  requestAnimationFrame(frame);
+}
+// ============ test API ============
+window.__sandbox={
+  version:1,
+  getState(){return{mode:state.mode,advanced:state.advanced,selected:state.selected,
+    charges:list().map(c=>({x:c.nx,y:c.ny,q:c.q,sign:c.sign})),
+    win:state.win.latched,ratio:ratioNow(),moves:state.moves,elapsed:state.elapsed,w,h,d0,E0};},
+  setCharge(i,x,y){const c=list()[i];if(!c)return;c.nx=clamp(x,PAD,1-PAD);c.ny=clamp(y,PAD,1-PAD);save();syncUI();},
+  addCharge(sign,q,x,y){addCharge(sign,q===2?2:1,x,y);},
+  removeCharge(i){removeCharge(i);},
+  select(i){state.selected=i;syncUI();},
+  setMode(m){setMode(m);},
+  setAdvanced(b){setAdvanced(b);},
+  reset(){resetCurrent();},
+  getRatio(){return ratioNow();},
+  isWin(){return state.win.latched;},
+  chargeScreenPos(i){const c=list()[i];if(!c)return null;const r=cv.getBoundingClientRect();return{cx:r.left+px(c),cy:r.top+py(c)};},
+  winProgress(){return state.win.accum;},
+  fieldLineStats(){ensureFieldLines();return{count:fieldLines.length,build:fieldBuildId,hash:fieldHash,sig:lastFieldSig};},
+  armElectron(b){electronArmed=!!b;syncUI();},
+  fireElectron(nx,ny){spawnElectron(clamp(nx,0,1)*w,clamp(ny,0,1)*h);},
+  electronCount(){return electrons.length;},
+  getElectrons(){return electrons.map(e=>{const f=fieldAt(e.x,e.y,list()),m=f.mag||1;
+    return{x:e.x/w,y:e.y/h,vx:e.vx,vy:e.vy,ex:f.ex/m,ey:f.ey/m,mag:f.mag,age:e.age};});}
+};
+// ============ boot ============
+resize();
+if(!load())defaultFree();
+defaultCh();
+syncUI();
+new ResizeObserver(resize).observe(stage);
+window.addEventListener('resize',resize);
+if(window.visualViewport)window.visualViewport.addEventListener('resize',resize);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
