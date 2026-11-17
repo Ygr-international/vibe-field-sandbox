@@ -4,6 +4,8 @@
 
 拖两个电荷到任意位置，实时看中点箭头合成，亲手把场强调成零。
 
+**在线玩**：https://ygr-international.github.io/vibe-field-sandbox/ （GitHub Pages，源码 https://github.com/Ygr-international/vibe-field-sandbox ）
+
 ## 玩法
 
 - **自由沙盘**：拖动电荷随便摆；点选后可反号 / q↔2q / 删除；加 + / 加 − / 重置（上限 8 个）。恰有 2 个电荷时显示中点 P 的 E₁/E₂ 分量箭头、红色合矢量与 |E|/E₀ 读数。默认摆好的 +q/−q 偶极中点读数恰为 **2.00**——正是片尾题的答案 B。
